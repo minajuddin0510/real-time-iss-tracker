@@ -4,7 +4,7 @@ Track the International Space Station live as it orbits Earth at 28,000 km/h —
 
 ## 🚀 Live Demo
 
-👉 [View it here](https://minajuddin0510.github.io/real-time-iss-tracker)
+👉 [View it here](https://minajuddin0510.github.io/real-time-iss-tracker/)
 
 ## 📸 Preview
 

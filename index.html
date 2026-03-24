@@ -1,0 +1,483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Real-time ISS Tracker</title>
+    
+    <!-- Leaflet.js CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    
+    <!-- Google Fonts - Orbitron -->
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&display=swap" rel="stylesheet">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Orbitron', monospace;
+            background: #000000;
+            overflow: hidden;
+            color: #00FF88;
+        }
+
+        /* Map Container */
+        #map {
+            width: 100vw;
+            height: 100vh;
+            background: #000000;
+        }
+
+        /* Leaflet Custom Styles */
+        .leaflet-container {
+            background: #000000;
+        }
+
+        .leaflet-tile-pane {
+            filter: brightness(0.8) contrast(1.2);
+        }
+
+        /* Top Left Info Panel */
+        .info-panel {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 12px;
+            padding: 25px;
+            width: 320px;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
+            animation: panelGlow 3s ease-in-out infinite;
+        }
+
+        @keyframes panelGlow {
+            0%, 100% {
+                box-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
+            }
+            50% {
+                box-shadow: 0 0 30px rgba(0, 255, 136, 0.4);
+            }
+        }
+
+        .info-panel h2 {
+            font-size: 18px;
+            margin-bottom: 15px;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: #00FF88;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
+            font-weight: 700;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 15px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid rgba(0, 255, 136, 0.1);
+            font-size: 13px;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+
+        .info-label {
+            color: rgba(0, 255, 136, 0.6);
+            font-weight: 400;
+        }
+
+        .info-value {
+            color: #00FF88;
+            font-weight: 700;
+            text-shadow: 0 0 8px rgba(0, 255, 136, 0.4);
+        }
+
+        .clock {
+            text-align: center;
+            font-size: 16px;
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(0, 255, 136, 0.1);
+            color: #00FF88;
+            font-weight: 700;
+            letter-spacing: 1px;
+        }
+
+        /* Bottom Astronauts Panel */
+        .astronauts-panel {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(0, 255, 136, 0.3);
+            border-radius: 12px;
+            padding: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            z-index: 1000;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.2);
+        }
+
+        .astronauts-panel h3 {
+            font-size: 14px;
+            margin-bottom: 12px;
+            color: #00FF88;
+            text-shadow: 0 0 10px rgba(0, 255, 136, 0.6);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+        }
+
+        .astronaut-list {
+            list-style: none;
+        }
+
+        .astronaut-item {
+            padding: 6px 0;
+            font-size: 12px;
+            color: rgba(0, 255, 136, 0.8);
+            padding-left: 20px;
+            position: relative;
+        }
+
+        .astronaut-item:before {
+            content: "👨‍🚀";
+            position: absolute;
+            left: 0;
+        }
+
+        /* Re-center Button */
+        .recenter-btn {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 255, 136, 0.1);
+            border: 2px solid rgba(0, 255, 136, 0.5);
+            color: #00FF88;
+            padding: 12px 20px;
+            font-size: 13px;
+            border-radius: 8px;
+            cursor: pointer;
+            z-index: 1000;
+            font-family: 'Orbitron', monospace;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            font-weight: 700;
+            transition: all 0.3s ease;
+            box-shadow: 0 0 10px rgba(0, 255, 136, 0.2);
+        }
+
+        .recenter-btn:hover {
+            background: rgba(0, 255, 136, 0.2);
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.5);
+            transform: scale(1.05);
+        }
+
+        .recenter-btn:active {
+            transform: scale(0.95);
+        }
+
+        /* ISS Marker Custom Icon */
+        .iss-marker {
+            font-size: 32px;
+            filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.8));
+            animation: issPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes issPulse {
+            0%, 100% {
+                filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.8));
+                transform: scale(1);
+            }
+            50% {
+                filter: drop-shadow(0 0 25px rgba(0, 255, 136, 1));
+                transform: scale(1.1);
+            }
+        }
+
+        /* Trail Line */
+        .iss-trail {
+            stroke: #00FF88;
+            stroke-dasharray: 5, 5;
+            opacity: 0.6;
+            filter: drop-shadow(0 0 3px rgba(0, 255, 136, 0.5));
+        }
+
+        /* Scrollbar styling */
+        .astronauts-panel::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .astronauts-panel::-webkit-scrollbar-track {
+            background: rgba(0, 255, 136, 0.05);
+            border-radius: 10px;
+        }
+
+        .astronauts-panel::-webkit-scrollbar-thumb {
+            background: rgba(0, 255, 136, 0.3);
+            border-radius: 10px;
+        }
+
+        .astronauts-panel::-webkit-scrollbar-thumb:hover {
+            background: rgba(0, 255, 136, 0.5);
+        }
+
+        /* Responsive Design */
+        @media (max-width: 768px) {
+            .info-panel {
+                width: 280px;
+                padding: 15px;
+                top: 10px;
+                left: 10px;
+            }
+
+            .recenter-btn {
+                top: 10px;
+                right: 10px;
+                padding: 10px 15px;
+                font-size: 11px;
+            }
+
+            .astronauts-panel {
+                bottom: 10px;
+                left: 10px;
+                right: 10px;
+                max-height: 150px;
+            }
+
+            .info-row {
+                font-size: 12px;
+            }
+
+            .info-panel h2 {
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .info-panel {
+                width: 100%;
+                max-width: 280px;
+                padding: 12px;
+                top: 5px;
+                left: 5px;
+                right: 5px;
+            }
+
+            .astronauts-panel {
+                max-height: 120px;
+            }
+
+            .recenter-btn {
+                padding: 8px 12px;
+                font-size: 10px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Map Container -->
+    <div id="map"></div>
+
+    <!-- Top Left Info Panel -->
+    <div class="info-panel">
+        <h2>🛸 ISS TRACKER</h2>
+        <div class="info-row">
+            <span class="info-label">Latitude:</span>
+            <span class="info-value" id="latitude">--</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Longitude:</span>
+            <span class="info-value" id="longitude">--</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Speed:</span>
+            <span class="info-value">27,600 km/h</span>
+        </div>
+        <div class="info-row">
+            <span class="info-label">Altitude:</span>
+            <span class="info-value">408 km</span>
+        </div>
+        <div class="clock" id="clock">--:--:-- UTC</div>
+    </div>
+
+    <!-- Bottom Astronauts Panel -->
+    <div class="astronauts-panel">
+        <h3 id="astronauts-title">👨‍🚀 People in Space</h3>
+        <ul class="astronaut-list" id="astronaut-list">
+            <li class="astronaut-item">Loading...</li>
+        </ul>
+    </div>
+
+    <!-- Re-center Button -->
+    <button class="recenter-btn" id="recenter-btn">🎯 Re-center</button>
+
+    <!-- Leaflet.js -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <script>
+        // Global variables
+        let map;
+        let issMarker;
+        let issPath = [];
+        let trail;
+        let lastPosition = null;
+        let issAutoCenter = true;
+
+        // Initialize the map
+        function initMap() {
+            map = L.map('map').setView([0, 0], 2);
+
+            // Add CartoDB Dark tile layer
+            L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+                attribution: '&copy; OpenStreetMap contributors &copy; CartoDB',
+                maxZoom: 19,
+                minZoom: 2
+            }).addTo(map);
+
+            // Create ISS marker with custom styling
+            const issIcon = L.divIcon({
+                html: '<div class="iss-marker">🛸</div>',
+                iconSize: [40, 40],
+                className: 'iss-icon'
+            });
+
+            issMarker = L.marker([0, 0], { icon: issIcon, zIndexOffset: 1000 }).addTo(map);
+
+            // Create empty trail polyline
+            trail = L.polyline([], {
+                color: '#00FF88',
+                weight: 2,
+                opacity: 0.6,
+                dashArray: '5, 5'
+            }).addTo(map);
+
+            // Set up re-center button
+            document.getElementById('recenter-btn').addEventListener('click', recenterMap);
+
+            // Disable auto-center when user interacts with map
+            map.on('drag', () => {
+                issAutoCenter = false;
+            });
+
+            map.on('zoom', () => {
+                issAutoCenter = false;
+            });
+
+            // Start fetching ISS position
+            fetchISSPosition();
+            setInterval(fetchISSPosition, 2000);
+
+            // Auto-recenter every 5 seconds
+            setInterval(() => {
+                if (issAutoCenter && lastPosition) {
+                    map.panTo([lastPosition.latitude, lastPosition.longitude], { animate: true, duration: 1 });
+                }
+            }, 5000);
+
+            // Start clock
+            updateClock();
+            setInterval(updateClock, 1000);
+
+            // Fetch astronauts
+            fetchAstronauts();
+            setInterval(fetchAstronauts, 30000);
+        }
+
+        // Fetch ISS position
+        async function fetchISSPosition() {
+            try {
+                const response = await fetch('http://api.open-notify.org/iss-now.json');
+                const data = await response.json();
+                const { latitude, longitude } = data.iss_position;
+
+                // Update info panel
+                document.getElementById('latitude').textContent = latitude.toFixed(4);
+                document.getElementById('longitude').textContent = longitude.toFixed(4);
+
+                // Update marker position with smooth animation
+                const newLatLng = [parseFloat(latitude), parseFloat(longitude)];
+                issMarker.setLatLng(newLatLng);
+
+                // Add to trail (keep last 20 positions)
+                issPath.push(newLatLng);
+                if (issPath.length > 20) {
+                    issPath.shift();
+                }
+                trail.setLatLngs(issPath);
+
+                // Auto-center if enabled
+                if (issAutoCenter) {
+                    map.panTo(newLatLng, { animate: true, duration: 0.5 });
+                }
+
+                lastPosition = { latitude: parseFloat(latitude), longitude: parseFloat(longitude) };
+            } catch (error) {
+                console.error('Error fetching ISS position:', error);
+            }
+        }
+
+        // Fetch astronauts in space
+        async function fetchAstronauts() {
+            try {
+                const response = await fetch('http://api.open-notify.org/astros.json');
+                const data = await response.json();
+                const { people, number } = data;
+
+                // Update title with count
+                document.getElementById('astronauts-title').textContent = 
+                    `👨‍🚀 ${number} People in Space`;
+
+                // Update astronaut list
+                const list = document.getElementById('astronaut-list');
+                list.innerHTML = '';
+                people.forEach(person => {
+                    const li = document.createElement('li');
+                    li.className = 'astronaut-item';
+                    li.textContent = person.name;
+                    list.appendChild(li);
+                });
+            } catch (error) {
+                console.error('Error fetching astronauts:', error);
+            }
+        }
+
+        // Update clock
+        function updateClock() {
+            const now = new Date();
+            const hours = String(now.getUTCHours()).padStart(2, '0');
+            const minutes = String(now.getUTCMinutes()).padStart(2, '0');
+            const seconds = String(now.getUTCSeconds()).padStart(2, '0');
+
+            document.getElementById('clock').textContent = `${hours}:${minutes}:${seconds} UTC`;
+        }
+
+        // Re-center button handler
+        function recenterMap() {
+            issAutoCenter = true;
+            if (lastPosition) {
+                map.setView([lastPosition.latitude, lastPosition.longitude], map.getZoom(), {
+                    animate: true,
+                    duration: 1
+                });
+            }
+        }
+
+        // Initialize when DOM is ready
+        document.addEventListener('DOMContentLoaded', initMap);
+    </script>
+</body>
+</html>
